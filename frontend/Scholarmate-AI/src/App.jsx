@@ -27,7 +27,7 @@ const App = () => {
 
   return (
     <Router>
-      <Router>
+      <Routes>
         <Route
         path="/"
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
@@ -48,7 +48,7 @@ const App = () => {
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
-      </Router>
+      </Routes>
     </Router>
   );
 }
