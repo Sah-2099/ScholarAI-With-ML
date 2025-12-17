@@ -11,6 +11,10 @@ import errorHandler from './middleware/errorHandler.js'
 import authRoutes from './routes/authRoutes.js'
 import documentRoutes from './routes/documentRoutes.js'
 import flashcardRoutes from './routes/flashcardRoutes.js'
+import aiRoutes from './routes/aiRoutes.js'
+import quizRoutes from './routes/quizRoutes.js'
+import progessRoutes from './routes/progessRoutes.js'
+
 
 
 // ES6 module_dirname alternative
@@ -44,6 +48,9 @@ app.use('/uploads', express.static(path.join(_dirname, 'uploads')));
 app.use('/api/auth',authRoutes)
 app.use('/api/documents',documentRoutes)
 app.use('/api/flashcards',flashcardRoutes)
+app.use('/api/ai',aiRoutes)
+app.use('/api/quizzes',quizRoutes)
+app.use('/api/progress',progessRoutes)
 
 
 app.use(errorHandler);
