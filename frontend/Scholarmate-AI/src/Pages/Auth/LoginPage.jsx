@@ -22,10 +22,10 @@ const LoginPage = () => {
     try {
       const { token, user } = await authService.login(email, password);
       login(user, token);
-      toast.success('Logged in successfully');
+      toast.success('Logged in successfully!');
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Failed to login');
+      setError(err.message || 'Failed to login. Please check your credentials.');
       toast.error(err.message || 'Failed to login');
     } finally {
       setLoading(false);
