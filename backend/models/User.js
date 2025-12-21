@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema({
         minlength: [6, 'Password must be at least 6 characters long'],
         select: false
     },
-    profileImage:{
+    profileImage: {
         type: String,
         default: null
     }
@@ -33,18 +33,19 @@ const userSchema = new mongoose.Schema({
 // Hash password before saving
 userSchema.pre('save', async function(next){
     if (!this.isModified('password')) {
-        next();
+        return next(); // 👈 Added `return` for safety
     }
 
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    next(); // 👈 Call next() after hashing
 });
 
-// Compare password method
-userSchema.method.matchPassword = async function(enteredPassword) {
+// ✅ Correct: use `.methods` (plural)
+userSchema.methods.matchPassword = async function(enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
-const User = mongoose.model('User',userSchema);
+const User = mongoose.model('User', userSchema);
 
 export default User;

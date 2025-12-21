@@ -9,12 +9,15 @@ const login = async (email, password) => {
         });
         return response.data;
     } catch (error) {
-        throw error.response?.data || {message: 'An unknown error occurred'};
+        const message =
+            error.response?.data?.message ||
+            "Invalid email or password";
+        throw new Error(message);
     }
 };
 
 const register = async (username, email, password) => {
-    try{
+    try {
         const response = await axiosInstance.post(API_PATHS.AUTH.REGISTER, {
             username,
             email,
@@ -22,43 +25,50 @@ const register = async (username, email, password) => {
         });
         return response.data;
     } catch (error) {
-        throw error.response?.data || {message: 'An unknown error occurred'};
+        const message =
+            error.response?.data?.message ||
+            "Registration failed";
+        throw new Error(message);
     }
 };
 
 const getProfile = async () => {
-    try{
+    try {
         const response = await axiosInstance.get(API_PATHS.AUTH.GET_PROFILE);
         return response.data;
     } catch (error) {
-        throw error.response?.data || {message: 'An unknown error occurred'}; 
+        throw new Error("Failed to fetch profile");
     }
 };
 
 const updateProfile = async (userData) => {
-    try{
-        const response = await axiosInstance.put(API_PATHS.AUTH.UPDATE_PROFILE, userData);
+    try {
+        const response = await axiosInstance.put(
+            API_PATHS.AUTH.UPDATE_PROFILE,
+            userData
+        );
         return response.data;
     } catch (error) {
-        throw error.response?.data || {message: 'An unknown error occurred'}; 
+        throw new Error("Failed to update profile");
     }
 };
 
-const changepassword = async (passwords) => {
-    try{
-        const response = await axiosInstance.post(API_PATHS.AUTH.CHANGE_PASSWORD, passwords);
+const changePassword = async (passwords) => {
+    try {
+        const response = await axiosInstance.post(
+            API_PATHS.AUTH.CHANGE_PASSWORD,
+            passwords
+        );
         return response.data;
     } catch (error) {
-        throw error.response?.data || {message: 'An unknown error occurred'}; 
+        throw new Error("Failed to change password");
     }
 };
 
-const authService = {
+export default {
     login,
     register,
     getProfile,
     updateProfile,
-    changepassword,
+    changePassword,
 };
-
-export default authService;
