@@ -7,19 +7,18 @@ import { PDFParse } from "pdf-parse";
  * @returns {Promise<{text: string, numPages: number}>}
  */
 export const extractTextFromPDF = async (filePath) => {
-    try {
-        const dataBuffer = await fs.readFile(filePath);
-        // pdf-parse expects a Uint8Array, not a Buffer
-        const parser = new PDFParse(new Uint8Array(dataBuffer));
-        const data = await parser.getText();
+  try {
+    const dataBuffer = await fs.readFile(filePath);
+    const parser = new PDFParse(new Uint8Array(dataBuffer));
+    const data = await parser.getText();
 
-        return{
-            text: data.text,
-            numPage: data.numPage,
-            info: data,info,
-        };
-    } catch (error) {
-        console.error("PDF parsing error", error);
-        throw new Error("Failed to extract text from PDF");
-    }
+    return {
+      text: data.text,
+      numPages: data.numpages, // ✅ Correct property name
+      // info: data.info,    // ✅ Only include if needed
+    };
+  } catch (error) {
+    console.error("PDF parsing error", error);
+    throw new Error("Failed to extract text from PDF");
+  }
 };

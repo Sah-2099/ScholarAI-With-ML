@@ -24,13 +24,12 @@ const storage = multer.diskStorage({
 
 // File filter - only PDFs
 const fileFilter = (req, file, cb) => {
-    if (file.minetype === 'application/pdf') {
+    if (file.mimetype === 'application/pdf') {
         cb(null, true);
     } else {
-        cb(new Error ('Only PDF files are allowed'), false);
+        cb(new Error('Only PDF files are allowed'), false);
     }
 };
-
 // Configure multer
 const upload = multer({
     storage: storage,

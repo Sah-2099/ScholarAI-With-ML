@@ -14,6 +14,7 @@ import QuizResultPage from './Pages/Quizzes/QuizResultPage';
 import ProfilePage from './Pages/Profile/ProfilePage';
 import { useAuth } from './context/AuthContext';
 
+
 const App = () => {
   const {isAuthenticated, loading} = useAuth()
 

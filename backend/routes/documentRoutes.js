@@ -16,7 +16,7 @@ router.use(protect);
 router.post('/upload', upload.single('file'), uploadDocument);
 router.get('/',getDocuments);
 router.get('/:id',getDocument);
-router.delete('/id', deleteDocument);
+router.delete('/:id', deleteDocument);
 
 
 export default router;
