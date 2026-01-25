@@ -1,216 +1,215 @@
-// utils/aiService.js
-import ollama from 'ollama';
+// backend/utils/aiService.js
+import axios from 'axios';
 
-const MODEL = 'llama3.2:3b';
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434/api/generate';
 
-export const generateContent = async (prompt) => {
+/**
+ * Call Ollama with proper error handling and JSON parsing
+ */
+const callOllama = async (prompt, model = 'llama3.2:3b') => {
   try {
-    const response = await ollama.generate({
-      model: MODEL,
-      prompt: prompt,
+    const response = await axios.post(OLLAMA_URL, {
+      model,
+      prompt,
       stream: false,
-      // Optional: slightly more creative responses
-      options: {
-        temperature: 0.7,
-        num_predict: 512
-      }
-    });
-    return response.response.trim();
+      format: 'json'
+    }, { timeout: 60000 });
+
+    let cleanResponse = response.data.response.trim();
+    
+    // Handle markdown code blocks
+    if (cleanResponse.startsWith('```json')) {
+      cleanResponse = cleanResponse.substring(7, cleanResponse.lastIndexOf('```')).trim();
+    } else if (cleanResponse.startsWith('```')) {
+      cleanResponse = cleanResponse.substring(3, cleanResponse.lastIndexOf('```')).trim();
+    }
+    
+    // Try to parse as JSON
+    try {
+      const result = JSON.parse(cleanResponse);
+      return result;
+    } catch (parseError) {
+      console.error('JSON parse failed, raw response:', cleanResponse);
+      // If JSON parsing fails, return structured fallback
+      return {
+        title: "Generated Quiz",
+        questions: []
+      };
+    }
   } catch (error) {
-    console.error("Local LLM Error:", error);
-    throw new Error("AI service temporarily unavailable. Please try again.");
+    console.error('Ollama call error:', error.message);
+    if (error.response) {
+      console.error('Ollama response:', error.response.data);
+    }
+    throw new Error('Failed to communicate with Ollama');
   }
 };
 
-// Keep your existing functions — they’ll work the same!
-export const generateFlashcards = async (text, count = 10) => {
+/**
+ * Generate flashcards from document text
+ */
+export const generateFlashcards = async (documentText, count = 10) => {
   const prompt = `
-You are an AI tutor creating study flashcards.
-Generate exactly ${count} educational flashcards from the text below.
+Generate ${count} flashcards from the following document as a JSON array.
 
-Instructions:
-- Each flashcard must test understanding, not just recall.
-- Use clear, concise questions.
-- Answers should be factual and directly from the text.
-- Assign difficulty honestly: easy (basic), medium (requires thought), hard (complex).
+Each card must be an object with:
+- "question": string
+- "answer": string  
+- "difficulty": "easy" | "medium" | "hard"
 
-Format:
-Q: Question
-A: Answer
-D: Difficulty (easy | medium | hard)
+Output ONLY a JSON array. No other text.
 
-Separate each flashcard using ---
-Text:
-${text.substring(0, 15000)}
+Document:
+${documentText}
 `;
 
-  try {
-    const generatedText = await generateContent(prompt);
-    const cards = generatedText.split("---").filter(Boolean);
-
-    return cards
-      .map(card => {
-        const lines = card.split("\n");
-        let question = "",
-          answer = "",
-          difficulty = "medium";
-
-        for (const line of lines) {
-          if (line.startsWith("Q:")) question = line.slice(2).trim();
-          if (line.startsWith("A:")) answer = line.slice(2).trim();
-          if (line.startsWith("D:")) {
-            const d = line.slice(2).trim().toLowerCase();
-            if (["easy", "medium", "hard"].includes(d)) difficulty = d;
-          }
-        }
-
-        return question && answer
-          ? { question, answer, difficulty }
-          : null;
-      })
-      .filter(Boolean)
-      .slice(0, count);
-  } catch (error) {
-    console.error("Flashcards generation failed:", error);
-    throw new Error("Failed to generate flashcards");
+  const result = await callOllama(prompt);
+  
+  // Handle case where result is already an array
+  if (Array.isArray(result)) {
+    return result.slice(0, count);
   }
+  
+  // Handle case where result has cards array
+  if (result.cards && Array.isArray(result.cards)) {
+    return result.cards.slice(0, count);
+  }
+  
+  // Handle case where result is an object that should be treated as single card
+  if (result.question && result.answer) {
+    return [result];
+  }
+  
+  throw new Error('Expected array of flashcards');
 };
 
-export const generateQuiz = async (text, numQuestions = 5) => {
+/**
+ * Generate quiz from document text
+ */
+export const generateQuiz = async (documentText, numQuestions = 5) => {
   const prompt = `
-You are an AI exam designer.
-Generate exactly ${numQuestions} multiple-choice questions based on the text below.
+You are an expert educator. Generate a quiz in STRICT JSON format with exactly ${numQuestions} multiple-choice questions based on the following document.
 
-Instructions:
-- Questions must be clear and unambiguous.
-- Only one correct answer per question.
-- Distractors (wrong options) should be plausible.
-- Provide a short explanation for the correct answer.
-- Assign difficulty: easy, medium, or hard.
+CRITICAL RULES:
+- Output ONLY valid JSON, no explanations, no markdown, no extra text
+- Use this exact structure:
+{
+  "title": "Short descriptive title about the document topic",
+  "questions": [
+    {
+      "question": "Clear question text?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": "Exact text of correct option"
+    }
+  ]
+}
+- All fields are required
+- Exactly 4 options per question
+- Correct answer must match one of the options exactly
 
-Format:
-Q: Question
-O1: Option 1
-O2: Option 2
-O3: Option 3
-O4: Option 4
-C: Correct option (e.g., O2)
-E: Explanation
-D: Difficulty (easy | medium | hard)
-
-Separate each question using ---
-Text:
-${text.substring(0, 15000)}
+Document:
+${documentText}
 `;
 
+  const result = await callOllama(prompt);
+  
+  // Validate structure with fallbacks
+  const quizData = {
+    title: result.title || "Generated Quiz",
+    questions: []
+  };
+
+  // Handle different possible response formats
+  if (result.questions && Array.isArray(result.questions)) {
+    quizData.questions = result.questions;
+  } else if (Array.isArray(result)) {
+    // If it returned just an array of questions
+    quizData.questions = result;
+  }
+
+  // Ensure we have the right number of questions
+  if (quizData.questions.length > numQuestions) {
+    quizData.questions = quizData.questions.slice(0, numQuestions);
+  } else if (quizData.questions.length < numQuestions) {
+    // Add placeholder questions if needed
+    while (quizData.questions.length < numQuestions) {
+      quizData.questions.push({
+        question: `Question ${quizData.questions.length + 1}`,
+        options: ["Option A", "Option B", "Option C", "Option D"],
+        correctAnswer: "Option A"
+      });
+    }
+  }
+
+  // Validate each question
+  quizData.questions = quizData.questions.map((q, index) => ({
+    question: q.question || `Question ${index + 1}`,
+    options: Array.isArray(q.options) && q.options.length >= 4 
+      ? q.options.slice(0, 4) 
+      : ["Option A", "Option B", "Option C", "Option D"],
+    correctAnswer: q.correctAnswer || "Option A"
+  }));
+
+  return quizData;
+};
+
+/**
+ * Generate summary from document text
+ */
+export const generateSummary = async (documentText) => {
+  const prompt = `Summarize the following document in 3-5 sentences:\n\n${documentText}`;
+  
   try {
-    const generatedText = await generateContent(prompt);
-    const blocks = generatedText.split("---").filter(Boolean);
-
-    return blocks
-      .map(block => {
-        const lines = block.split("\n");
-        let question = "",
-          options = [],
-          correctAnswer = "",
-          explanation = "",
-          difficulty = "medium";
-
-        for (const line of lines) {
-          const l = line.trim();
-          if (l.startsWith("Q:")) question = l.slice(2).trim();
-          if (/^O[1-4]:/.test(l)) options.push(l.slice(3).trim());
-          if (l.startsWith("C:")) correctAnswer = l.slice(2).trim();
-          if (l.startsWith("E:")) explanation = l.slice(2).trim();
-          if (l.startsWith("D:")) {
-            const d = l.slice(2).trim().toLowerCase();
-            if (["easy", "medium", "hard"].includes(d)) difficulty = d;
-          }
-        }
-
-        return question && options.length === 4 && correctAnswer
-          ? { question, options, correctAnswer, explanation, difficulty }
-          : null;
-      })
-      .filter(Boolean)
-      .slice(0, numQuestions);
+    const response = await axios.post(OLLAMA_URL, {
+      model: 'llama3.2:3b',
+      prompt,
+      stream: false
+    }, { timeout: 30000 });
+    
+    return response.data.response;
   } catch (error) {
-    console.error("Quiz generation failed:", error);
-    throw new Error("Failed to generate quiz");
+    console.error('Summary generation error:', error.message);
+    return "Summary could not be generated.";
   }
 };
 
-export const generateSummary = async text => {
-  const prompt = `
-You are an AI study assistant.
-Provide a clear, concise, and educational summary of the following text.
-- Highlight key ideas, definitions, and important concepts.
-- Use complete sentences.
-- Keep it under 200 words.
-
-Text:
-${text.substring(0, 20000)}
-`;
-
+/**
+ * Chat with context
+ */
+export const chatWithContext = async (question, relevantChunks) => {
+  const context = relevantChunks.map(c => c.content).join('\n\n');
+  const prompt = `Context:\n${context}\n\nQuestion: ${question}\nAnswer concisely:`;
+  
   try {
-    return await generateContent(prompt);
+    const response = await axios.post(OLLAMA_URL, {
+      model: 'llama3.2:3b',
+      prompt,
+      stream: false
+    }, { timeout: 30000 });
+    
+    return response.data.response;
   } catch (error) {
-    console.error("Summary generation failed:", error);
-    throw new Error("Failed to generate summary");
+    console.error('Chat generation error:', error.message);
+    return "Sorry, I couldn't generate a response.";
   }
 };
 
-export const chatWithContext = async (question, chunks) => {
-  const context = chunks
-    .map((c, i) => `[Chunk ${i + 1}]\n${c.content}`)
-    .join("\n\n");
-
-  const prompt = `
-You are an AI Learning Assistant helping a student understand their study material.
-
-Answer the question using ONLY the context below.
-If the answer is not in the context, say: "I cannot answer that based on the provided document."
-
-Instructions:
-- Explain concepts clearly and simply.
-- Use 2–5 complete sentences.
-- If helpful, include a short example.
-- Do NOT invent information.
-
-Context:
-${context}
-
-Question: ${question}
-
-Answer:
-`;
-
-  try {
-    return await generateContent(prompt);
-  } catch (error) {
-    console.error("Chat generation failed:", error);
-    throw new Error("Failed to process chat request");
-  }
-};
-
+/**
+ * Explain concept with context
+ */
 export const explainConcept = async (concept, context) => {
-  const prompt = `
-You are an AI tutor explaining concepts to a student.
-
-Explain the concept "${concept}" clearly and simply.
-- Use 3–5 complete sentences.
-- Include a real-world example if possible.
-- Base your explanation ONLY on the context below.
-- If the concept isn't covered, say: "I cannot explain that based on the provided material."
-
-Context:
-${context.substring(0, 10000)}
-`;
-
+  const prompt = `Explain "${concept}" based on this context:\n\n${context}`;
+  
   try {
-    return await generateContent(prompt);
+    const response = await axios.post(OLLAMA_URL, {
+      model: 'llama3.2:3b',
+      prompt,
+      stream: false
+    }, { timeout: 30000 });
+    
+    return response.data.response;
   } catch (error) {
-    console.error("Concept explanation failed:", error);
-    throw new Error("Failed to explain concept");
+    console.error('Explanation generation error:', error.message);
+    return "Sorry, I couldn't generate an explanation.";
   }
 };
