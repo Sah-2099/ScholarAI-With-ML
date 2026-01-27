@@ -9,7 +9,7 @@ import DocumentListPage from './Pages/Documents/DocumentListPage';
 import DocumentDetailPage from './Pages/Documents/DocumentDetailPage';
 import FlashcardsListPage from './Pages/Flashcards/FlashcardsListPage';
 import FlashcardPage from './Pages/Flashcards/FlashcardPage';
-import QuizTakePage from './Pages/Quizzes/QuizTakePage';
+import QuizTakePage from './Pages/Quizzes/QuizTakePage.jsx';
 import QuizResultPage from './Pages/Quizzes/QuizResultPage';
 import ProfilePage from './Pages/Profile/ProfilePage';
 import { useAuth } from './context/AuthContext';
