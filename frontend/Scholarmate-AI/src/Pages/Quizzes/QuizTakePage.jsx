@@ -19,44 +19,65 @@ const QuizTakePage = () => {
   useEffect(() => {
     const fetchQuiz = async () => {
       try {
+        console.log('🔍 Starting quiz fetch for ID:', quizId);
         const response = await quizService.getQuizById(quizId);
         
-        // Handle different response structures from your backend
+        // 🔍 DEBUG: Log the exact response structure
+        console.log('🔍 RAW RESPONSE:', response);
+        console.log('🔍 RESPONSE TYPE:', typeof response);
+
         let quizData;
-        if (response.data && response.data.data) {
-          // Your backend returns { success: true, data: { /* quiz */ } }
+        
+        // Handle case where response is empty array
+        if (Array.isArray(response) && response.length === 0) {
+          console.error('❌ Backend returned empty array');
+          throw new Error('Quiz not found');
+        }
+        
+        // Handle error responses
+        if (response.success === false) {
+          console.error('❌ Backend returned error:', response.error);
+          throw new Error(response.error || 'Quiz not found');
+        }
+
+        if (response.data?.data) {
           quizData = response.data.data;
+          console.log('✅ Using nested data structure (response.data.data)');
         } else if (response.data) {
-          // Direct quiz object
           quizData = response.data;
-        } else if (response.success && response.data) {
-          // Alternative structure
-          quizData = response.data;
+          console.log('✅ Using direct data structure (response.data)');
         } else {
-          // Fallback: assume response is the quiz
           quizData = response;
+          console.log('✅ Using root response as data');
         }
 
-        // 🔑 CRITICAL FIX: Handle all possible ID scenarios
-        if (!quizData) {
-          throw new Error('No quiz data returned from server');
-        }
+        console.log('🔍 EXTRACTED QUIZ DATA:', quizData);
+        console.log('🔍 QUIZ QUESTIONS:', quizData?.questions);
+        console.log('🔍 QUESTIONS LENGTH:', quizData?.questions?.length);
 
-        // If no _id or id exists, use the quizId from URL as fallback
-        if (!quizData._id && !quizData.id) {
-          quizData._id = quizId;
-        } else if (quizData.id && !quizData._id) {
-          quizData._id = quizData.id;
+        // Validate and normalize
+        if (!quizData || !quizData._id) {
+          console.error('❌ Invalid quiz data - missing _id');
+          throw new Error('Invalid quiz data structure');
         }
 
         // Ensure questions array exists
         if (!Array.isArray(quizData.questions)) {
+          console.warn('⚠️ questions is not an array, creating empty array');
           quizData.questions = [];
         }
 
+        // Ensure each question has required fields
+        quizData.questions = quizData.questions.map(q => ({
+          ...q,
+          options: q.options || ["Option A", "Option B", "Option C", "Option D"],
+          correctAnswer: q.correctAnswer || "Option A"
+        }));
+
+        console.log('✅ Final quiz data ready:', quizData);
         setQuiz(quizData);
       } catch (error) {
-        console.error('Failed to fetch quiz:', error);
+        console.error('❌ Quiz fetch failed:', error);
         toast.error('Failed to load quiz. Please try again.');
         navigate('/quizzes', { replace: true });
       } finally {
@@ -103,12 +124,9 @@ const QuizTakePage = () => {
       }
 
       const formattedAnswers = Object.keys(selectedAnswers).map(questionId => {
-        // Find question by multiple possible ID fields
-        const questionIndex = quiz.questions.findIndex(q => 
-          (q._id || q.id || quiz._id) === questionId
-        );
+        const questionIndex = quiz.questions.findIndex(q => (q._id || q.id || quiz._id) === questionId);
         const optionIndex = selectedAnswers[questionId];
-        const selectedAnswer = quiz.questions[questionIndex]?.options[optionIndex] || '';
+        const selectedAnswer = quiz.questions[questionIndex]?.options?.[optionIndex] || '';
         return { questionIndex, selectedAnswer };
       });
 
@@ -191,7 +209,7 @@ const QuizTakePage = () => {
 
         {/* Options */}
         <div className="space-y-3">
-          {currentQuestion.options?.map((option, index) => {
+          {(currentQuestion.options || ["Option A", "Option B", "Option C", "Option D"]).map((option, index) => {
             const isSelected = selectedAnswers[currentQuestion._id || currentQuestion.id || quiz._id] === index;
             return (
               <label

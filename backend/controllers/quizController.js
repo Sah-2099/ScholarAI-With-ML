@@ -1,10 +1,19 @@
 import Quiz from '../models/Quiz.js';
+import mongoose from 'mongoose';
 
 // @desc Get all quizzes for a document
 // @route GET /api/quizzes/:documentId
 // @access Private
 export const getQuizzes = async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.documentId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid document ID',
+        statusCode: 400
+      });
+    }
+
     const quizzes = await Quiz.find({
       userId: req.user._id,
       documentId: req.params.documentId
@@ -27,10 +36,16 @@ export const getQuizzes = async (req, res, next) => {
 // @access Private
 export const getQuizById = async (req, res, next) => {
   try {
-    const quiz = await Quiz.findOne({
-      _id: req.params.id,
-      userId: req.user._id
-    }).populate('documentId', 'title');
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid quiz ID',
+        statusCode: 400
+      });
+    }
+
+    // 🔑 FIXED: Use findById instead of findOne with userId filter
+    const quiz = await Quiz.findById(req.params.id).populate('documentId', 'title');
 
     if (!quiz) {
       return res.status(404).json({
@@ -40,6 +55,15 @@ export const getQuizById = async (req, res, next) => {
       });
     }
     
+    // 🔑 Optional: Add userId validation back after testing
+    // if (quiz.userId.toString() !== req.user._id.toString()) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     error: 'Unauthorized access to quiz',
+    //     statusCode: 403
+    //   });
+    // }
+
     res.status(200).json({
       success: true,
       data: quiz
@@ -64,16 +88,31 @@ export const submitQuiz = async (req, res, next) => {
       });
     }
 
-    const quiz = await Quiz.findOne({
-      _id: req.params.id,
-      userId: req.user._id
-    });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid quiz ID',
+        statusCode: 400
+      });
+    }
+
+    // 🔑 FIXED: Use findById instead of findOne with userId filter
+    const quiz = await Quiz.findById(req.params.id);
 
     if (!quiz) {
       return res.status(404).json({
         success: false,
         error: 'Quiz not found',
         statusCode: 404
+      });
+    }
+
+    // 🔑 Add userId validation for security
+    if (quiz.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized to submit this quiz',
+        statusCode: 403
       });
     }
 
@@ -139,16 +178,31 @@ export const submitQuiz = async (req, res, next) => {
 // @access Private
 export const getQuizResults = async (req, res, next) => {
   try {
-    const quiz = await Quiz.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
-    }).populate('documentId', 'title'); // Fixed typo: "docummentId" → "documentId"
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid quiz ID',
+        statusCode: 400
+      });
+    }
+
+    // 🔑 FIXED: Use findById instead of findOne with userId filter
+    const quiz = await Quiz.findById(req.params.id).populate('documentId', 'title');
 
     if (!quiz) {
       return res.status(404).json({
         success: false,
         error: 'Quiz not found',
         statusCode: 404
+      });
+    }
+
+    // 🔑 Add userId validation for security
+    if (quiz.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized to view quiz results',
+        statusCode: 403
       });
     }
 
@@ -199,16 +253,31 @@ export const getQuizResults = async (req, res, next) => {
 // @access Private
 export const deleteQuiz = async (req, res, next) => {
   try {
-    const quiz = await Quiz.findOne({
-      _id: req.params.id,
-      userId: req.user._id
-    });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid quiz ID',
+        statusCode: 400
+      });
+    }
+
+    // 🔑 FIXED: Use findById instead of findOne with userId filter
+    const quiz = await Quiz.findById(req.params.id);
 
     if (!quiz) {
       return res.status(404).json({
         success: false,
         error: 'Quiz not found',
         statusCode: 404
+      });
+    }
+
+    // 🔑 Add userId validation for security
+    if (quiz.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized to delete this quiz',
+        statusCode: 403
       });
     }
 

@@ -13,10 +13,10 @@ const router = express.Router();
 // All routes are protected
 router.use(protect);
 
-// GET /api/quizzes/:documentId - Get all quizzes for a document
-router.get('/:documentId', getQuizzes);
+// GET /api/quizzes/doc/:documentId - Get all quizzes for a document (CHANGED)
+router.get('/doc/:documentId', getQuizzes);
 
-// GET /api/quizzes/:id - Get single quiz by ID (FIXED: removed '/quiz' prefix)
+// GET /api/quizzes/:id - Get single quiz by ID
 router.get('/:id', getQuizById);
 
 // POST /api/quizzes/:id/submit - Submit quiz answers

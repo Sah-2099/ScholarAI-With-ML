@@ -6,14 +6,14 @@ const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434/api/generat
 /**
  * Call Ollama with proper error handling and JSON parsing
  */
-const callOllama = async (prompt, model = 'llama3.2:3b') => {
+const callOllama = async (prompt, model = 'llama3.2:3b', customTimeout = 180000) => {
   try {
     const response = await axios.post(OLLAMA_URL, {
       model,
       prompt,
       stream: false,
       format: 'json'
-    }, { timeout: 60000 });
+    }, { timeout: customTimeout });
 
     let cleanResponse = response.data.response.trim();
     
@@ -49,33 +49,22 @@ const callOllama = async (prompt, model = 'llama3.2:3b') => {
  * Generate flashcards from document text
  */
 export const generateFlashcards = async (documentText, count = 10) => {
+  // Simplify the prompt for better reliability
   const prompt = `
-Generate ${count} flashcards from the following document as a JSON array.
-
-Each card must be an object with:
-- "question": string
-- "answer": string  
-- "difficulty": "easy" | "medium" | "hard"
-
-Output ONLY a JSON array. No other text.
-
-Document:
-${documentText}
-`;
-
-  const result = await callOllama(prompt);
+Generate exactly ${count} flashcards as a JSON array.
+Each card: {"question": "string", "answer": "string", "difficulty": "easy"|"medium"|"hard"}
+Document: ${documentText.substring(0, 2000)}...`;
   
-  // Handle case where result is already an array
+  const result = await callOllama(prompt, 'llama3.2:3b', 120000);
+  
   if (Array.isArray(result)) {
     return result.slice(0, count);
   }
   
-  // Handle case where result has cards array
   if (result.cards && Array.isArray(result.cards)) {
     return result.cards.slice(0, count);
   }
   
-  // Handle case where result is an object that should be treated as single card
   if (result.question && result.answer) {
     return [result];
   }
@@ -87,51 +76,28 @@ ${documentText}
  * Generate quiz from document text
  */
 export const generateQuiz = async (documentText, numQuestions = 5) => {
+  // Use a much simpler, more reliable prompt
   const prompt = `
-You are an expert educator. Generate a quiz in STRICT JSON format with exactly ${numQuestions} multiple-choice questions based on the following document.
+Create a quiz with exactly ${numQuestions} multiple-choice questions in JSON format.
+Format: {"title": "Quiz Title", "questions": [{"question": "Q?", "options": ["A","B","C","D"], "correctAnswer": "A"}]}
+Rules: Only JSON, no explanations, exactly ${numQuestions} questions, 4 options each.
+Content: ${documentText.substring(0, 1500)}...`;
 
-CRITICAL RULES:
-- Output ONLY valid JSON, no explanations, no markdown, no extra text
-- Use this exact structure:
-{
-  "title": "Short descriptive title about the document topic",
-  "questions": [
-    {
-      "question": "Clear question text?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": "Exact text of correct option"
-    }
-  ]
-}
-- All fields are required
-- Exactly 4 options per question
-- Correct answer must match one of the options exactly
-
-Document:
-${documentText}
-`;
-
-  const result = await callOllama(prompt);
+  const result = await callOllama(prompt, 'llama3.2:3b', 180000);
   
-  // Validate structure with fallbacks
   const quizData = {
     title: result.title || "Generated Quiz",
     questions: []
   };
 
-  // Handle different possible response formats
   if (result.questions && Array.isArray(result.questions)) {
     quizData.questions = result.questions;
   } else if (Array.isArray(result)) {
-    // If it returned just an array of questions
     quizData.questions = result;
   }
 
-  // Ensure we have the right number of questions
-  if (quizData.questions.length > numQuestions) {
-    quizData.questions = quizData.questions.slice(0, numQuestions);
-  } else if (quizData.questions.length < numQuestions) {
-    // Add placeholder questions if needed
+  // Ensure correct number of questions
+  if (quizData.questions.length < numQuestions) {
     while (quizData.questions.length < numQuestions) {
       quizData.questions.push({
         question: `Question ${quizData.questions.length + 1}`,
@@ -139,6 +105,10 @@ ${documentText}
         correctAnswer: "Option A"
       });
     }
+  }
+  
+  if (quizData.questions.length > numQuestions) {
+    quizData.questions = quizData.questions.slice(0, numQuestions);
   }
 
   // Validate each question
@@ -157,14 +127,14 @@ ${documentText}
  * Generate summary from document text
  */
 export const generateSummary = async (documentText) => {
-  const prompt = `Summarize the following document in 3-5 sentences:\n\n${documentText}`;
+  const prompt = `Summarize in 3-5 sentences: ${documentText.substring(0, 2000)}...`;
   
   try {
     const response = await axios.post(OLLAMA_URL, {
       model: 'llama3.2:3b',
       prompt,
       stream: false
-    }, { timeout: 30000 });
+    }, { timeout: 60000 }); // Increased to 60 seconds
     
     return response.data.response;
   } catch (error) {
@@ -177,15 +147,15 @@ export const generateSummary = async (documentText) => {
  * Chat with context
  */
 export const chatWithContext = async (question, relevantChunks) => {
-  const context = relevantChunks.map(c => c.content).join('\n\n');
-  const prompt = `Context:\n${context}\n\nQuestion: ${question}\nAnswer concisely:`;
+  const context = relevantChunks.map(c => c.content).join('\n\n').substring(0, 1500);
+  const prompt = `Answer based on context: ${context}\n\nQuestion: ${question}`;
   
   try {
     const response = await axios.post(OLLAMA_URL, {
       model: 'llama3.2:3b',
       prompt,
       stream: false
-    }, { timeout: 30000 });
+    }, { timeout: 60000 }); // Increased to 60 seconds
     
     return response.data.response;
   } catch (error) {
@@ -198,14 +168,14 @@ export const chatWithContext = async (question, relevantChunks) => {
  * Explain concept with context
  */
 export const explainConcept = async (concept, context) => {
-  const prompt = `Explain "${concept}" based on this context:\n\n${context}`;
+  const prompt = `Explain "${concept}" using: ${context.substring(0, 1500)}...`;
   
   try {
     const response = await axios.post(OLLAMA_URL, {
       model: 'llama3.2:3b',
       prompt,
       stream: false
-    }, { timeout: 30000 });
+    }, { timeout: 60000 }); // Increased to 60 seconds
     
     return response.data.response;
   } catch (error) {
